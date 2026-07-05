@@ -207,7 +207,7 @@
   </script>
 
   <script>
-    const SERVICE_UUID        = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+   const SERVICE_UUID        = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
     const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
     let bluetoothDevice = null; let rxCharacteristic = null; let capacitorDeviceId = null;
     let gpsInterval = null; let isCapacitorActive = false; let isReconnecting = false;
@@ -230,9 +230,14 @@
     window.addEventListener('load', async () => {
       const savedID = localStorage.getItem('mochi_device_id'); const savedPIN = localStorage.getItem('mochi_device_pin');
       if (savedID) inputMochiID.value = savedID; if (savedPIN) inputMochiPIN.value = savedPIN;
-      if (window.Capacitor && window.Capacitor.Plugins && window.Capacizer.Plugins.BluetoothLe) {
+      
+      // FIX: Corrected "Capacizer" typo to "Capacitor" so native engine activates
+      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BluetoothLe) {
         isCapacitorActive = true; runtimeEngineText.textContent = "Capacitor Native Engine Active";
-        try { await window.Capacitor.Plugins.BluetoothLe.initialize(); setTimeout(() => { attemptAutoReconnect(); }, 800); } catch(e){}
+        try { 
+          await window.Capacitor.Plugins.BluetoothLe.initialize(); 
+          setTimeout(() => { attemptAutoReconnect(); }, 800); 
+        } catch(e){ console.error("BLE Init Error: ", e); }
       } else {
         isCapacitorActive = false; runtimeEngineText.textContent = "Standard Web Bluetooth Active";
       }
@@ -261,7 +266,7 @@
           deviceId: lastMacAddress,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToHex(handshakeToken) // Fixed: changed stringToBase64 to stringToHex
+          value: stringToHex(handshakeToken)
         });
 
         capacitorDeviceId = lastMacAddress;
@@ -283,7 +288,14 @@
       if (saveCheck.checked) { localStorage.setItem('mochi_device_id', rawSuffix); localStorage.setItem('mochi_device_pin', pinCode); }
 
       try {
-        connectionState.textContent = "PERMISSIONS..."; try { await nativeBle.requestPermissions(); } catch (e) {}
+        // FIX: Added dedicated runtime permissions trigger to display the native Location / Nearby prompt
+        connectionState.textContent = "PERMISSIONS..."; 
+        try { 
+          await nativeBle.requestPermissions(); 
+        } catch (e) {
+          console.warn("Permissions interface rejected or bypassed:", e);
+        }
+        
         connectionState.textContent = "SCANNING...";
         const device = await nativeBle.requestDevice({ services: [SERVICE_UUID], scanMode: 2 });
         if (!device || !device.deviceId) { onDisconnected(); return; }
@@ -300,7 +312,7 @@
           deviceId: device.deviceId,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToHex(handshakeToken) // Fixed: changed stringToBase64 to stringToHex
+          value: stringToHex(handshakeToken)
         });
 
         capacitorDeviceId = device.deviceId;
@@ -341,9 +353,7 @@
       if (isCapacitorActive) {
         if (!capacitorDeviceId) return;
         try {
-          // Fixed: Changed from a partial byte-mapping Base64 conversion to a full Hex stream string
           const hexValue = stringToHex(command);
-
           await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
@@ -364,7 +374,6 @@
     customOledTextInput.addEventListener('input', () => { if (capacitorDeviceId || rxCharacteristic) { window.sendSyncPacket(); } });
     unpairBtn.addEventListener('click', () => { localStorage.removeItem('mochi_device_id'); localStorage.removeItem('mochi_device_pin'); localStorage.removeItem('mochi_paired_mac_address'); localStorage.removeItem('mochi_paired_name'); onDisconnected(); });
 
-    // Handle manual GPS user-triggered clicks
     gpsBtn.addEventListener('click', () => { startAutomaticSync(); });
 
     function startAutomaticSync() {
@@ -380,7 +389,6 @@
           } catch (e) {}
           if (cityName.length > 10) cityName = cityName.substring(0, 10);
           
-          // Fix mapping parameters: ensures city strings cleanly bind down into the Target Node container row
           document.getElementById('appCity').textContent = cityName.toUpperCase();
           
           try {
@@ -391,7 +399,6 @@
             }
           } catch (e) {}
           
-          // Correctly map your current weather parameters down into your Telemetry Panel text node
           document.getElementById('appWeather').textContent = weatherDetails.toUpperCase();
           
           window.sendSyncPacket();
