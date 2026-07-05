@@ -220,16 +220,12 @@
     const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
     const runtimeEngineText = document.getElementById('runtimeEngine');
 
-    // Robust text encoder converting payload strings directly into a clean Base64 format 
-    // supported perfectly by Capacitor without dropping remaining string packages.
-    function stringToBase64(str) {
-      const encoder = new TextEncoder();
-      const uint8Array = encoder.encode(str);
-      let binString = "";
-      for (let i = 0; i < uint8Array.length; i++) {
-        binString += String.fromCharCode(uint8Array[i]);
-      }
-      return btoa(binString);
+    // Converted to generate a clean HEX string stream which the native Capacitor 
+    // BLE module requires to transmit raw byte structures safely.
+    function stringToHex(str) {
+      return Array.from(str)
+        .map(c => c.charCodeAt(0).toString(16).padStart(2, '0'))
+        .join('');
     }
     
     window.addEventListener('load', async () => {
@@ -272,7 +268,7 @@
           deviceId: lastMacAddress,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToBase64(handshakeToken)
+          value: stringToHex(handshakeToken)
         });
 
         capacitorDeviceId = lastMacAddress;
@@ -298,7 +294,7 @@
         try { 
           await nativeBle.requestPermissions(); 
         } catch (permissionErr) {
-          console.warn("Permissions prompt bypassed or already granted:", permissionErr);
+          console.warn("Permissions interface passed:", permissionErr);
         }
         
         connectionState.textContent = "SCANNING...";
@@ -317,7 +313,7 @@
           deviceId: device.deviceId,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToBase64(handshakeToken)
+          value: stringToHex(handshakeToken)
         });
 
         capacitorDeviceId = device.deviceId;
@@ -358,14 +354,14 @@
       if (isCapacitorActive) {
         if (!capacitorDeviceId) return;
         try {
-          // Encodes full telemetry data packet string fully to clear buffer errors
-          const base64Value = stringToBase64(command);
+          // Send as direct clean HEX to bypass any character drops
+          const hexValue = stringToHex(command);
 
           await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
             characteristic: CHARACTERISTIC_UUID,
-            value: base64Value
+            value: hexValue
           });
         } catch (err) {
           console.error("Capacitor TX Error:", err);
