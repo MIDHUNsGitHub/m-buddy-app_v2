@@ -1,0 +1,12 @@
+{
+  "name": "m-buddy-app",
+  "version": "1.0.0",
+  "description": "Offline ESP32 Companion App",
+  "main": "index.js",
+  "dependencies": {
+    "@capgo/capacitor-bluetooth-low-energy": "^7.0.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  }
+}
