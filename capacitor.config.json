@@ -1,0 +1,6 @@
+{
+  "appId": "com.yourname.mbuddy",
+  "appName": "M-Buddy",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}
