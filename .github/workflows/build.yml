@@ -23,8 +23,8 @@ jobs:
 
       - name: Setup Android Project
         run: |
-          npx cap add android
           npx cap sync android
+          npx cap doctor android
           
 
       - name: Set up JDK 17
