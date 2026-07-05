@@ -1,29 +1,440 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M-Buddy Companion Control</title>
+  
+  <script src="capacitor.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=400;600;800&family=Space+Grotesk:wght=500;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #EAECF0; color: #000000; }
+    .retro-heading { font-family: 'Space Grotesk', sans-serif; color: #233D4D; }
+    .retro-panel { background-color: #FFFFFF; border: 2px solid #000000; box-shadow: 4px 4px 0px #000000; }
+    .retro-btn-orange { background-color: #FE7F2D; color: #FFFFFF; border: 2px solid #000000; box-shadow: 3px 3px 0px #000000; }
+    .retro-btn-orange:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0px #000000; }
+    .retro-input { background-color: #F8F9FA; border: 2px solid #000000; color: #000000; }
+    .retro-input:focus { outline: none; border-color: #FE7F2D; }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body class="min-h-screen p-5 flex flex-col justify-between relative select-none">
 
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <div id="toastContainer" class="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-sm px-4 pointer-events-none transition-all duration-300 transform -translate-y-10 opacity-0">
+    <div class="bg-white border-2 border-black p-4 shadow-[4px_4px_0px_#000000] flex items-center gap-3">
+      <div id="toastIcon" class="w-6 h-6 flex items-center justify-center font-bold text-sm border border-black">!</div>
+      <div>
+        <p id="toastTitle" class="font-bold text-xs tracking-wider uppercase retro-heading">SYSTEM</p>
+        <p id="toastMessage" class="text-xs text-gray-700 mt-0.5">Details.</p>
+      </div>
+    </div>
+  </div>
 
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="M-Buddy"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+  <header class="text-left max-w-md mx-auto w-full pt-4 border-b-2 border-black pb-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <img src="asset/logo.png" alt="M-Buddy Logo" class="h-9 w-auto object-contain border-2 border-black bg-white p-1" onerror="this.style.display='none'; document.getElementById('fallbackHeading').classList.remove('hidden');">
+      <h1 id="fallbackHeading" class="retro-heading text-3xl font-black tracking-tight hidden">M-BUDDY</h1>
+    </div>
+    <p class="text-xs text-gray-600 font-semibold tracking-wide uppercase mt-1">Companion Control Terminal</p>
+  </header>
 
-        <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
-            android:name=".MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-</manifest>
+  <main class="max-w-md mx-auto w-full flex-grow flex flex-col justify-center gap-6 py-6">
+    <div class="retro-panel rounded-xl p-6">
+      <div class="flex items-start justify-between border-b-2 border-dashed border-gray-300 pb-4">
+        <div>
+          <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">Hardware State</span>
+          <h2 id="connectionState" class="text-2xl font-black tracking-tight retro-heading mt-0.5">DISCONNECTED</h2>
+          <span id="runtimeEngine" class="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mt-1">Initializing Engine...</span>
+        </div>
+        <div class="flex items-center gap-1.5 border-2 border-black px-2 py-1 bg-gray-50">
+          <div id="pingDot" class="w-3 h-3 bg-red-500 rounded-full border border-black"></div>
+          <span id="pingLabel" class="text-[10px] font-bold tracking-wider uppercase text-gray-700">OFFLINE</span>
+        </div>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-[11px] text-black font-bold uppercase tracking-wider block mb-1">Robot Suffix</label>
+            <input type="text" id="mochiID" maxlength="4" placeholder="Any" class="retro-input w-full rounded-lg px-3 py-2 text-center text-sm font-bold uppercase tracking-widest">
+          </div>
+          <div>
+            <label class="text-[11px] text-black font-bold uppercase tracking-wider block mb-1">Passkey PIN</label>
+            <input type="password" id="mochiPIN" maxlength="4" placeholder="1234" class="retro-input w-full rounded-lg px-3 py-2 text-center text-sm font-bold tracking-widest">
+          </div>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <input type="checkbox" id="saveCredentials" checked class="accent-black w-4 h-4 border-2 border-black rounded">
+          <span class="text-xs text-gray-600 font-semibold tracking-wide">Remember configurations</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3 mt-6">
+        <button id="connectBtn" class="retro-btn-orange w-full py-3.5 rounded-xl font-bold tracking-wider uppercase text-sm transition-all">Search & Connect</button>
+        <button id="unpairBtn" class="hidden w-full py-2 bg-gray-100 hover:bg-gray-200 text-red-600 font-bold tracking-wider uppercase text-xs border-2 border-black rounded-xl transition-all">Forget Pair Memory</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div class="retro-panel rounded-xl p-4 flex flex-col justify-between">
+        <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">Telemetry Environment</span>
+        <div class="my-3">
+          <span id="appWeather" class="text-xl font-black retro-heading tracking-tight">WAITING...</span>
+          <span class="text-[10px] text-gray-500 block font-semibold mt-0.5">METRIC SYNC</span>
+        </div>
+      </div>
+      <div class="retro-panel rounded-xl p-4 flex flex-col justify-between">
+        <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">System Chrono</span>
+        <div class="my-3">
+          <span id="appTime" class="text-2xl font-black retro-heading tracking-tight">--:--</span>
+          <span class="text-[10px] text-gray-500 block font-semibold mt-0.5">LOCAL HOST TIME</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="retro-panel rounded-xl p-6 space-y-4">
+      <span class="text-xs text-black font-bold uppercase tracking-widest block retro-heading">OLED Custom Message Queue</span>
+      <div class="space-y-4">
+        <div class="flex gap-2">
+          <div class="flex-grow">
+            <input type="text" id="customOledText" maxlength="15" placeholder="Type message..." class="retro-input w-full rounded-lg px-3 py-2 text-sm font-medium tracking-wide">
+          </div>
+          <button id="saveTextBtn" class="retro-btn-orange px-4 py-2 rounded-lg font-bold tracking-wider uppercase text-xs transition-all flex items-center justify-center h-[38px]">Save</button>
+        </div>
+        <div class="pt-3 border-t border-gray-200">
+          <span class="text-[10px] text-gray-500 font-bold uppercase tracking-widest block mb-2">Saved Registers</span>
+          <div id="savedTextsList" class="space-y-2 max-h-36 overflow-y-auto pr-1">
+            <div class="text-xs text-gray-400 italic py-1">Initializing registries...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="retro-panel rounded-xl p-6">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs text-black font-bold uppercase tracking-widest block retro-heading">Location Coordinate Stream</span>
+        <button id="gpsBtn" class="text-[10px] font-bold uppercase border-2 border-black bg-gray-50 px-3 py-1 rounded-md tracking-wider">Sync Stream</button>
+      </div>
+      <div class="flex justify-between items-center bg-gray-50 border-2 border-black p-3 rounded-lg">
+        <span class="text-xs font-bold text-gray-600 uppercase">Target Node:</span>
+        <span id="appCity" class="font-black text-sm text-black retro-heading">SEARCHING...</span>
+      </div>
+    </div>
+  </main>
+
+  <footer class="text-center py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">M-Buddy Hardware Project &copy; 2026</footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, doc, onSnapshot, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const fallbackConfig = { apiKey: "AIzaSyDummyKeyForDevelopmentPurposesOnly", authDomain: "mochi-buddy-development.firebaseapp.com", projectId: "mochi-buddy-development", storageBucket: "mochi-buddy-development.appspot.com", messagingSenderId: "1234567890", appId: "1:1234567890:web:abcdef" };
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : fallbackConfig;
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let db = null; try { db = getFirestore(app); } catch(e){}
+    const appId = (typeof __app_id !== 'undefined' && __app_id) ? __app_id : 'default-app-id';
+    let currentUser = null; let savedTextsUnsubscribe = null;
+
+    window.renderLocalSavedTexts = function() {
+      const listContainer = document.getElementById('savedTextsList');
+      const cached = localStorage.getItem('mochi_text_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached); parsed.sort((a, b) => b.createdAt - a.createdAt);
+        if (parsed.length > 0) {
+          listContainer.innerHTML = '';
+          parsed.forEach((item) => {
+            const itemEl = document.createElement('div');
+            itemEl.className = "flex items-center justify-between bg-gray-50 border-2 border-black rounded-lg px-3 py-1.5 cursor-pointer hover:bg-gray-100 transition-all";
+            itemEl.innerHTML = `<span class="text-xs font-bold truncate flex-grow mr-2 text-black tracking-wide">${item.text}</span><button class="local-delete-btn text-gray-400 hover:text-red-600 p-1 font-bold text-sm" data-id="${item.id}">&times;</button>`;
+            itemEl.addEventListener('click', (e) => {
+              if (e.target.classList.contains('local-delete-btn')) return;
+              document.getElementById('customOledText').value = item.text;
+              window.showToast("STAGED", "Loaded to transmission buffer.");
+              if (window.sendSyncPacket) window.sendSyncPacket();
+            });
+            itemEl.querySelector('.local-delete-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteLocalAndRemoteMessage(e.currentTarget.getAttribute('data-id')); });
+            listContainer.appendChild(itemEl);
+          });
+          return;
+        }
+      }
+      listContainer.innerHTML = `<div class="text-xs text-gray-400 italic py-1">No saved records.</div>`;
+    }
+
+    async function deleteLocalAndRemoteMessage(msgId) {
+      let cached = localStorage.getItem('mochi_text_cache') ? JSON.parse(localStorage.getItem('mochi_text_cache')) : [];
+      cached = cached.filter(item => item.id !== msgId); localStorage.setItem('mochi_text_cache', JSON.stringify(cached));
+      window.renderLocalSavedTexts();
+      if (currentUser && !msgId.startsWith('temp_') && db) {
+        try { await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'saved_texts', msgId)); } catch (err) {}
+      }
+      window.showToast("REMOVED", "Message index cleared.");
+    }
+    window.renderLocalSavedTexts();
+
+    const initAuthAndObserver = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { await signInWithCustomToken(auth, __initial_auth_token); } else { await signInAnonymously(auth); }
+        onAuthStateChanged(auth, (user) => { currentUser = user; if (user && db) setupSavedTextsListener(user.uid); });
+      } catch (e) {}
+    };
+    initAuthAndObserver();
+
+    function setupSavedTextsListener(userId) {
+      if (!userId || !db) return; if (savedTextsUnsubscribe) savedTextsUnsubscribe();
+      try {
+        savedTextsUnsubscribe = onSnapshot(query(collection(db, 'artifacts', appId, 'users', userId, 'saved_texts'), orderBy('createdAt', 'desc')), (snapshot) => {
+          const localItems = []; if (snapshot.empty) { window.renderLocalSavedTexts(); return; }
+          snapshot.forEach((docSnap) => { const data = docSnap.data(); localItems.push({ id: docSnap.id, text: data.text, createdAt: data.createdAt || Date.now() }); });
+          localStorage.setItem('mochi_text_cache', JSON.stringify(localItems)); window.renderLocalSavedTexts();
+        }, () => { window.renderLocalSavedTexts(); });
+      } catch(e) { window.renderLocalSavedTexts(); }
+    }
+
+    document.getElementById('saveTextBtn').addEventListener('click', async () => {
+      const inputField = document.getElementById('customOledText'); const textToSave = inputField.value.trim(); if (!textToSave) return;
+      const entryTimestamp = Date.now(); const uniqueTempId = 'temp_' + entryTimestamp;
+      const cached = localStorage.getItem('mochi_text_cache') ? JSON.parse(localStorage.getItem('mochi_text_cache')) : [];
+      cached.push({ id: uniqueTempId, text: textToSave, createdAt: entryTimestamp }); localStorage.setItem('mochi_text_cache', JSON.stringify(cached));
+      window.renderLocalSavedTexts(); if (window.sendSyncPacket) window.sendSyncPacket();
+      if (!currentUser || !db) return;
+      try { await addDoc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'saved_texts'), { text: textToSave, createdAt: entryTimestamp }); window.showToast("REGISTERED", "Saved to Cloud!"); } catch (err) {}
+    });
+  </script>
+
+  <script>
+    const SERVICE_UUID        = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+    const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+    let bluetoothDevice = null; let rxCharacteristic = null; let capacitorDeviceId = null;
+    let gpsInterval = null; let isCapacitorActive = false; let isReconnecting = false;
+    let cityName = "Kochi"; let weatherDetails = "Sunny 31C";
+
+    const connectBtn = document.getElementById('connectBtn'); const unpairBtn = document.getElementById('unpairBtn');
+    const connectionState = document.getElementById('connectionState'); const pingDot = document.getElementById('pingDot');
+    const pingLabel = document.getElementById('pingLabel'); const gpsBtn = document.getElementById('gpsBtn');
+    const inputMochiID = document.getElementById('mochiID'); const inputMochiPIN = document.getElementById('mochiPIN');
+    const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
+    const runtimeEngineText = document.getElementById('runtimeEngine');
+
+    // Robust text encoder converting payload strings directly into a clean Base64 format 
+    // supported perfectly by Capacitor without dropping remaining string packages.
+    function stringToBase64(str) {
+      const encoder = new TextEncoder();
+      const uint8Array = encoder.encode(str);
+      let binString = "";
+      for (let i = 0; i < uint8Array.length; i++) {
+        binString += String.fromCharCode(uint8Array[i]);
+      }
+      return btoa(binString);
+    }
+    
+    window.addEventListener('load', async () => {
+      const savedID = localStorage.getItem('mochi_device_id'); const savedPIN = localStorage.getItem('mochi_device_pin');
+      if (savedID) inputMochiID.value = savedID; if (savedPIN) inputMochiPIN.value = savedPIN;
+      
+      if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BluetoothLe) {
+        isCapacitorActive = true; 
+        runtimeEngineText.textContent = "Capacitor Native Engine Active";
+        try { 
+          await window.Capacitor.Plugins.BluetoothLe.initialize(); 
+          setTimeout(() => { attemptAutoReconnect(); }, 800); 
+        } catch(e){ console.error("BLE Native Error:", e); }
+      } else {
+        isCapacitorActive = false; 
+        runtimeEngineText.textContent = "Standard Web Bluetooth Active";
+      }
+      startAutomaticSync();
+    });
+
+    async function attemptAutoReconnect() {
+      if (!isCapacitorActive) return;
+      const lastMacAddress = localStorage.getItem('mochi_paired_mac_address');
+      const lastStoredName = localStorage.getItem('mochi_paired_name') || "M-Buddy Hardware";
+      if (!lastMacAddress || isReconnecting) return;
+
+      isReconnecting = true;
+      const nativeBle = window.Capacitor.Plugins.BluetoothLe;
+      const pinCode = inputMochiPIN.value.trim() || "1234";
+
+      try {
+        connectionState.textContent = "RECONNECTING...";
+        await nativeBle.connect({ deviceId: lastMacAddress, timeout: 6000 });
+        await new Promise(r => setTimeout(r, 1200));
+        
+        connectionState.textContent = "AUTHENTICATING...";
+        const handshakeToken = `AUTH:${pinCode}`;
+        
+        await nativeBle.write({
+          deviceId: lastMacAddress,
+          service: SERVICE_UUID,
+          characteristic: CHARACTERISTIC_UUID,
+          value: stringToBase64(handshakeToken)
+        });
+
+        capacitorDeviceId = lastMacAddress;
+        finalizeConnectionUI(lastStoredName);
+      } catch (err) { onDisconnected(); } finally { isReconnecting = false; }
+    }
+
+    connectBtn.addEventListener('click', async () => {
+      if (bluetoothDevice || capacitorDeviceId || rxCharacteristic) { onDisconnected(); } else {
+        if (isCapacitorActive) { handleCapacitorConnect(); } else { handleWebConnect(); }
+      }
+    });
+
+    async function handleCapacitorConnect() {
+      const nativeBle = window.Capacitor.Plugins.BluetoothLe;
+      const rawSuffix = inputMochiID.value.trim().toUpperCase();
+      const pinCode = inputMochiPIN.value.trim() || "1234";
+
+      if (saveCheck.checked) { localStorage.setItem('mochi_device_id', rawSuffix); localStorage.setItem('mochi_device_pin', pinCode); }
+
+      try {
+        connectionState.textContent = "PERMISSIONS..."; 
+        try { 
+          await nativeBle.requestPermissions(); 
+        } catch (permissionErr) {
+          console.warn("Permissions prompt bypassed or already granted:", permissionErr);
+        }
+        
+        connectionState.textContent = "SCANNING...";
+        const device = await nativeBle.requestDevice({ services: [SERVICE_UUID], scanMode: 2 });
+        if (!device || !device.deviceId) { onDisconnected(); return; }
+
+        let targetDeviceName = device.name ? device.name : `M-Buddy_${rawSuffix || 'Device'}`;
+        connectionState.textContent = "BONDING...";
+        await nativeBle.connect({ deviceId: device.deviceId, timeout: 15000 });
+        await new Promise(r => setTimeout(r, 1500));
+        
+        connectionState.textContent = "AUTHENTICATING...";
+        const handshakeToken = `AUTH:${pinCode}`;
+        
+        await nativeBle.write({
+          deviceId: device.deviceId,
+          service: SERVICE_UUID,
+          characteristic: CHARACTERISTIC_UUID,
+          value: stringToBase64(handshakeToken)
+        });
+
+        capacitorDeviceId = device.deviceId;
+        localStorage.setItem('mochi_paired_mac_address', device.deviceId);
+        localStorage.setItem('mochi_paired_name', targetDeviceName);
+        finalizeConnectionUI(targetDeviceName);
+      } catch (err) { window.showToast("CONNECTION ERROR", err.message || "Failed."); onDisconnected(); }
+    }
+
+    async function handleWebConnect() {
+      const rawSuffix = inputMochiID.value.trim().toUpperCase(); const pinCode = inputMochiPIN.value.trim() || "1234";
+      if (saveCheck.checked) { localStorage.setItem('mochi_device_id', rawSuffix); localStorage.setItem('mochi_device_pin', pinCode); }
+      try {
+        connectionState.textContent = "DISCOVERING..."; let filter = { optionalServices: [SERVICE_UUID] };
+        if (rawSuffix) { filter.filters = [{ name: `M-Buddy_${rawSuffix}` }]; } else { filter.filters = [{ namePrefix: 'M-Buddy' }]; }
+        bluetoothDevice = await navigator.bluetooth.requestDevice(filter);
+        bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+        
+        connectionState.textContent = "CONNECTING..."; const server = await bluetoothDevice.gatt.connect();
+        connectionState.textContent = "RESOLVING..."; const service = await server.getPrimaryService(SERVICE_UUID);
+        rxCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        connectionState.textContent = "AUTHENTICATING...";
+        await rxCharacteristic.writeValue((new TextEncoder()).encode(`AUTH:${pinCode}`));
+        finalizeConnectionUI(bluetoothDevice.name || "M-BUDDY");
+      } catch (err) { onDisconnected(); }
+    }
+
+    function finalizeConnectionUI(displayName) {
+      connectionState.textContent = displayName.toUpperCase();
+      pingDot.className = "w-3 h-3 bg-green-500 rounded-full border border-black"; pingLabel.textContent = "ONLINE";
+      pingLabel.className = "text-[10px] font-bold tracking-wider uppercase text-green-700";
+      connectBtn.textContent = "Disconnect Robot"; unpairBtn.classList.remove('hidden');
+      setTimeout(() => { window.sendSyncPacket(); }, 1500);
+    }
+
+    async function sendCommand(command) {
+      if (isCapacitorActive) {
+        if (!capacitorDeviceId) return;
+        try {
+          // Encodes full telemetry data packet string fully to clear buffer errors
+          const base64Value = stringToBase64(command);
+
+          await window.Capacitor.Plugins.BluetoothLe.write({
+            deviceId: capacitorDeviceId,
+            service: SERVICE_UUID,
+            characteristic: CHARACTERISTIC_UUID,
+            value: base64Value
+          });
+        } catch (err) {
+          console.error("Capacitor TX Error:", err);
+        }
+      } else {
+        if (!rxCharacteristic) return;
+        try { 
+          await rxCharacteristic.writeValue((new TextEncoder()).encode(command)); 
+        } catch (err) {}
+      }
+    }
+
+    customOledTextInput.addEventListener('input', () => { if (capacitorDeviceId || rxCharacteristic) { window.sendSyncPacket(); } });
+    unpairBtn.addEventListener('click', () => { localStorage.removeItem('mochi_device_id'); localStorage.removeItem('mochi_device_pin'); localStorage.removeItem('mochi_paired_mac_address'); localStorage.removeItem('mochi_paired_name'); onDisconnected(); });
+
+    gpsBtn.addEventListener('click', () => { startAutomaticSync(); });
+
+    function startAutomaticSync() {
+      if (gpsInterval) clearInterval(gpsInterval);
+      const refreshMetrics = () => {
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          try {
+            const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`, { headers: { 'User-Agent': 'MBuddyTerminal/1.0' } });
+            const d = await r.json(); 
+            if (d && d.address) {
+              cityName = d.address.city || d.address.town || "Kochi";
+            }
+          } catch (e) {}
+          if (cityName.length > 10) cityName = cityName.substring(0, 10);
+          
+          document.getElementById('appCity').textContent = cityName.toUpperCase();
+          
+          try {
+            const r2 = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&current_weather=true`);
+            const d2 = await r2.json(); 
+            if (d2 && d2.current_weather) {
+              weatherDetails = `Sunny ${Math.round(d2.current_weather.temperature)}C`;
+            }
+          } catch (e) {}
+          
+          document.getElementById('appWeather').textContent = weatherDetails.toUpperCase();
+          
+          window.sendSyncPacket();
+        }, () => { window.sendSyncPacket(); }, { timeout: 10000 });
+      };
+      refreshMetrics(); gpsInterval = setInterval(refreshMetrics, 8000);
+    }
+
+    window.sendSyncPacket = function() {
+      if (!capacitorDeviceId && !rxCharacteristic) return;
+      const now = new Date(); const hrs = String(now.getHours()).padStart(2, '0'); const mins = String(now.getMinutes()).padStart(2, '0');
+      let text = customOledTextInput.value.trim();
+      sendCommand(`DASH:${hrs}:${mins}|${cityName || "City..."}|${weatherDetails || "Weather..."}|${text}`);
+    }
+
+    function onDisconnected() {
+      connectionState.textContent = "DISCONNECTED"; pingDot.className = "w-3 h-3 bg-red-500 rounded-full border border-black";
+      pingLabel.textContent = "OFFLINE"; pingLabel.className = "text-[10px] font-bold tracking-wider uppercase text-gray-700";
+      connectBtn.textContent = "Search & Connect"; unpairBtn.classList.add('hidden');
+      if (isCapacitorActive && capacitorDeviceId) { try { window.Capacitor.Plugins.BluetoothLe.disconnect({ deviceId: capacitorDeviceId }); } catch(e){} }
+      bluetoothDevice = null; rxCharacteristic = null; capacitorDeviceId = null;
+    }
+
+    setInterval(() => { const n = new Date(); document.getElementById('appTime').textContent = `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; }, 1000);
+    window.showToast = function(t, m) {
+      const c = document.getElementById('toastContainer'); document.getElementById('toastTitle').textContent = t; document.getElementById('toastMessage').textContent = m;
+      c.classList.remove('opacity-0', '-translate-y-10'); c.classList.add('opacity-100', 'translate-y-0');
+      setTimeout(() => { c.classList.remove('opacity-100', 'translate-y-0'); c.classList.add('opacity-0', '-translate-y-10'); }, 3500);
+    }
+  </script>
+</body>
+</html>
