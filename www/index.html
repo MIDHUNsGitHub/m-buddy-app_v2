@@ -220,12 +220,12 @@
     const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
     const runtimeEngineText = document.getElementById('runtimeEngine');
 
-    // Converted to generate a clean HEX string stream which the native Capacitor 
-    // BLE module requires to transmit raw byte structures safely.
-    function stringToHex(str) {
-      return Array.from(str)
-        .map(c => c.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join('');
+    // FIXED: Converts text characters directly into a raw numeric integer array.
+    // This forces Android to send the complete data bundle without string truncations.
+    function stringToNumericArray(str) {
+      const encoder = new TextEncoder();
+      const uint8 = encoder.encode(str);
+      return Array.from(uint8); 
     }
     
     window.addEventListener('load', async () => {
@@ -264,11 +264,12 @@
         connectionState.textContent = "AUTHENTICATING...";
         const handshakeToken = `AUTH:${pinCode}`;
         
+        // FIXED: Passes numerical binary format data array
         await nativeBle.write({
           deviceId: lastMacAddress,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToHex(handshakeToken)
+          value: stringToNumericArray(handshakeToken)
         });
 
         capacitorDeviceId = lastMacAddress;
@@ -309,11 +310,12 @@
         connectionState.textContent = "AUTHENTICATING...";
         const handshakeToken = `AUTH:${pinCode}`;
         
+        // FIXED: Transmits as native binary element array
         await nativeBle.write({
           deviceId: device.deviceId,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToHex(handshakeToken)
+          value: stringToNumericArray(handshakeToken)
         });
 
         capacitorDeviceId = device.deviceId;
@@ -354,14 +356,14 @@
       if (isCapacitorActive) {
         if (!capacitorDeviceId) return;
         try {
-          // Send as direct clean HEX to bypass any character drops
-          const hexValue = stringToHex(command);
+          // FIXED: Package dashboard telemetry packets cleanly as a numerical array
+          const numericPayload = stringToNumericArray(command);
 
           await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
             characteristic: CHARACTERISTIC_UUID,
-            value: hexValue
+            value: numericPayload
           });
         } catch (err) {
           console.error("Capacitor TX Error:", err);
@@ -432,5 +434,6 @@
       setTimeout(() => { c.classList.remove('opacity-100', 'translate-y-0'); c.classList.add('opacity-0', '-translate-y-10'); }, 3500);
     }
   </script>
+  
 </body>
 </html>
