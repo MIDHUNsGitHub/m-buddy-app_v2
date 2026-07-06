@@ -273,13 +273,8 @@
         await new Promise(r => setTimeout(r, 1200));
         
         connectionState.textContent = "AUTHENTICATING...";
+        await sendCommand(`AUTH:${pinCode}`);
         
-        await nativeBle.write({
-          deviceId: lastMacAddress,
-          service: SERVICE_UUID,
-          characteristic: CHARACTERISTIC_UUID,
-          value: textToNumberArray(`AUTH:${pinCode}`) // Directly sends simple hex
-        });
 
         capacitorDeviceId = lastMacAddress;
         finalizeConnectionUI(lastStoredName);
@@ -313,14 +308,8 @@
         await new Promise(r => setTimeout(r, 1500));
         
         connectionState.textContent = "AUTHENTICATING...";
+        await sendCommand(`AUTH:${pinCode}`);
         
-        await nativeBle.write({
-          deviceId: device.deviceId,
-          service: SERVICE_UUID,
-          characteristic: CHARACTERISTIC_UUID,
-          value: textToNumberArray(`AUTH:${pinCode}`) // Direct hex delivery
-        });
-
         capacitorDeviceId = device.deviceId;
         localStorage.setItem('mochi_paired_mac_address', device.deviceId);
         localStorage.setItem('mochi_paired_name', targetDeviceName);
@@ -358,30 +347,43 @@
       setTimeout(() => { window.sendSyncPacket(); }, 1500);
     }
 
-    // 2. Update your sendCommand function to pass the Base64 value
     async function sendCommand(command) {
       if (!command) return;
 
-      // Convert plaintext message to raw number bytes array
-      const bufferArray = textToNumberArray(command);
+      console.log("[BLE TX] Preparing payload command string:", command);
+
+      // 1. Create a raw binary buffer allocated exactly to the string's length
+      const buffer = new ArrayBuffer(command.length);
+      const dataView = new DataView(buffer);
+
+      // 2. Populate the data view with individual character byte codes
+      for (let i = 0; i < command.length; i++) {
+        dataView.setUint8(i, command.charCodeAt(i));
+      }
 
       if (isCapacitorActive) {
         if (!capacitorDeviceId) return;
         try {
+          // 3. Pass the DataView object directly to the plugin value property
           await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
             characteristic: CHARACTERISTIC_UUID,
-            value: bufferArray // Send array direct to native radio layer
+            value: dataView // <--- This native DataView object prevents the "Value required" Android error!
           });
+          console.log("[BLE TX] Capacitor native hardware write complete.");
         } catch (err) {
-          console.error("Capacitor TX Error:", err);
+          console.error("[BLE TX Error] Capacitor failed to broadcast:", err);
+          window.showToast("TRANSMISSION ERROR", err.message || "Native Drop");
         }
       } else {
+        // WebBluetooth Fallback Path for normal browser testing
         if (!rxCharacteristic) return;
         try { 
-          await rxCharacteristic.writeValue(new Uint8Array(bufferArray)); 
-        } catch (err) {}
+          await rxCharacteristic.writeValue(dataView); 
+        } catch (err) {
+          console.error("[BLE TX Error] WebBluetooth fallback failed:", err);
+        }
       }
     }
 
