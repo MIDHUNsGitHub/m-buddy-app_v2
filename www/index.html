@@ -220,6 +220,15 @@
     const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
     const runtimeEngineText = document.getElementById('runtimeEngine');
 
+    // Convert plain text string to raw character number bytes
+    function textToNumberArray(str) {
+      const bufferArray = [];
+      for (let i = 0; i < str.length; i++) {
+        bufferArray.push(str.charCodeAt(i));
+      }
+      return bufferArray; // Returns something like [65, 85, 84, 72...]
+    }
+
     // 1. Replace your old stringToHex function with this clean Base64 Converter
     function stringToBase64(str) {
       // Converts standard text strings safely into standard Base64 format
@@ -227,6 +236,8 @@
         return String.fromCharCode('0x' + p1);
       }));
     }
+
+    
     
     window.addEventListener('load', async () => {
       const savedID = localStorage.getItem('mochi_device_id'); const savedPIN = localStorage.getItem('mochi_device_pin');
@@ -267,7 +278,7 @@
           deviceId: lastMacAddress,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToHex(`AUTH:${pinCode}`) // Directly sends simple hex
+          value: textToNumberArray(`AUTH:${pinCode}`) // Directly sends simple hex
         });
 
         capacitorDeviceId = lastMacAddress;
@@ -307,7 +318,7 @@
           deviceId: device.deviceId,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToHex(`AUTH:${pinCode}`) // Direct hex delivery
+          value: textToNumberArray(`AUTH:${pinCode}`) // Direct hex delivery
         });
 
         capacitorDeviceId = device.deviceId;
@@ -351,35 +362,26 @@
     async function sendCommand(command) {
       if (!command) return;
 
-      // 1. Convert the plain text string into a clean array of raw character byte codes
-      // Example: "AUTH:1234" becomes [65, 85, 84, 72, 58, 49, 50, 51, 52]
-      const bufferArray = [];
-      for (let i = 0; i < command.length; i++) {
-        bufferArray.push(command.charCodeAt(i));
-      }
+      // Convert plaintext message to raw number bytes array
+      const bufferArray = textToNumberArray(command);
 
       if (isCapacitorActive) {
         if (!capacitorDeviceId) return;
         try {
-          // 2. Pass the raw numbers array directly into the native mobile plugin value
           await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
             characteristic: CHARACTERISTIC_UUID,
-            value: bufferArray // <--- Sending the raw array skips the broken string parser completely!
+            value: bufferArray // Send array direct to native radio layer
           });
-          console.log("Capacitor Native TX sent byte array:", bufferArray);
         } catch (err) {
           console.error("Capacitor TX Error:", err);
         }
       } else {
-        // Standard Web Bluetooth fallback path for normal browsers
         if (!rxCharacteristic) return;
         try { 
           await rxCharacteristic.writeValue(new Uint8Array(bufferArray)); 
-        } catch (err) {
-          console.error("WebBluetooth TX Error:", err);
-        }
+        } catch (err) {}
       }
     }
 
