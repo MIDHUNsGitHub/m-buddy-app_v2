@@ -220,13 +220,18 @@
     const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
     const runtimeEngineText = document.getElementById('runtimeEngine');
 
-    // THE ONLY CONVERSION FUNCTION: Converts a text string into an ArrayBuffer DataView.
-    // This provides a standard binary payload container that Capacitor natively maps 
-    // to Android's Bluetooth stack without dropping any characters.
-    function stringToDataView(str) {
+    // FIXED CONVERSION FUNCTION: Converts text into a compliant Base64 string payload.
+    // This provides a valid structure that Capacitor safely passes to Android's Bluetooth stack,
+    // where your ESP32's base64 library handles the data correctly.
+    function stringToBase64(str) {
       const encoder = new TextEncoder();
       const uint8Array = encoder.encode(str);
-      return new DataView(uint8Array.buffer);
+      let binary = '';
+      const len = uint8Array.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      return window.btoa(binary);
     }
     
     window.addEventListener('load', async () => {
@@ -269,7 +274,7 @@
           deviceId: lastMacAddress,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToDataView(handshakeToken)
+          value: stringToBase64(handshakeToken)
         });
 
         capacitorDeviceId = lastMacAddress;
@@ -314,7 +319,7 @@
           deviceId: device.deviceId,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToDataView(handshakeToken)
+          value: stringToBase64(handshakeToken)
         });
 
         capacitorDeviceId = device.deviceId;
@@ -359,7 +364,7 @@
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
             characteristic: CHARACTERISTIC_UUID,
-            value: stringToDataView(command)
+            value: stringToBase64(command)
           });
         } catch (err) {
           console.error("Capacitor TX Error:", err);
