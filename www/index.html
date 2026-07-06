@@ -220,16 +220,14 @@
     const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
     const runtimeEngineText = document.getElementById('runtimeEngine');
 
-    // Robust text encoder converting payload strings directly into a clean Base64 format 
-    // supported perfectly by Capacitor without dropping remaining string packages.
-    function stringToBase64(str) {
-      const encoder = new TextEncoder();
-      const uint8Array = encoder.encode(str);
-      let binString = "";
-      for (let i = 0; i < uint8Array.length; i++) {
-        binString += String.fromCharCode(uint8Array[i]);
+    // NEW SIMPLE CONVERSION: Plain text straight to direct Hex characters
+    function stringToHex(str) {
+      let hex = '';
+      for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i);
+        hex += code.toString(16).padStart(2, '0');
       }
-      return btoa(binString);
+      return hex; // Returns simple string like "44415348..."
     }
     
     window.addEventListener('load', async () => {
@@ -266,13 +264,12 @@
         await new Promise(r => setTimeout(r, 1200));
         
         connectionState.textContent = "AUTHENTICATING...";
-        const handshakeToken = `AUTH:${pinCode}`;
         
         await nativeBle.write({
           deviceId: lastMacAddress,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToBase64(handshakeToken)
+          value: stringToHex(`AUTH:${pinCode}`) // Directly sends simple hex
         });
 
         capacitorDeviceId = lastMacAddress;
@@ -295,11 +292,7 @@
 
       try {
         connectionState.textContent = "PERMISSIONS..."; 
-        try { 
-          await nativeBle.requestPermissions(); 
-        } catch (permissionErr) {
-          console.warn("Permissions prompt bypassed or already granted:", permissionErr);
-        }
+        try { await nativeBle.requestPermissions(); } catch (e) {}
         
         connectionState.textContent = "SCANNING...";
         const device = await nativeBle.requestDevice({ services: [SERVICE_UUID], scanMode: 2 });
@@ -311,20 +304,22 @@
         await new Promise(r => setTimeout(r, 1500));
         
         connectionState.textContent = "AUTHENTICATING...";
-        const handshakeToken = `AUTH:${pinCode}`;
         
         await nativeBle.write({
           deviceId: device.deviceId,
           service: SERVICE_UUID,
           characteristic: CHARACTERISTIC_UUID,
-          value: stringToBase64(handshakeToken)
+          value: stringToHex(`AUTH:${pinCode}`) // Direct hex delivery
         });
 
         capacitorDeviceId = device.deviceId;
         localStorage.setItem('mochi_paired_mac_address', device.deviceId);
         localStorage.setItem('mochi_paired_name', targetDeviceName);
         finalizeConnectionUI(targetDeviceName);
-      } catch (err) { window.showToast("CONNECTION ERROR", err.message || "Failed."); onDisconnected(); }
+      } catch (err) { 
+        window.showToast("CONNECTION ERROR", err.message || "Failed."); 
+        onDisconnected(); 
+      }
     }
 
     async function handleWebConnect() {
@@ -354,36 +349,24 @@
       setTimeout(() => { window.sendSyncPacket(); }, 1500);
     }
 
-    async function sendCommand(commandText) {
-      if (!commandText) return;
-      
-      try {
-        // 1. Convert the plain text string into an explicit array of individual character byte codes
-        const encoder = new TextEncoder();
-        const byteData = encoder.encode(commandText + "\n"); // Includes newline to help string alignment
-        
-        // 2. Convert the byte array into a standard Hexadecimal string format required by Capacitor BLE
-        const hexString = Array.from(byteData)
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-
-        console.log("Sending Raw Hex Payload:", hexString);
-
-        if (isCapacitorActive && capacitorDeviceId && rxCharacteristic) {
-          // Execute the native hardware transmission using the explicit Hex format
-          await window.Capacitor.Plugins.BluetoothLe.writeWithoutResponse({
+    async function sendCommand(command) {
+      if (isCapacitorActive) {
+        if (!capacitorDeviceId) return;
+        try {
+          await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
-            service: '4fafc201-1fb5-459e-8fcc-c5c9c331914b',
-            characteristic: 'beb5483e-36e1-4688-b7f5-ea07361b26a8',
-            value: hexString // Sends the complete hex array instead of a breaking string pointer
+            service: SERVICE_UUID,
+            characteristic: CHARACTERISTIC_UUID,
+            value: stringToHex(command) // Uses the exact same straightforward hex delivery
           });
-        } else if (rxCharacteristic) {
-          // Fallback WebBluetooth path for standard browser testing
-          await rxCharacteristic.writeValueWithoutResponse(byteData);
+        } catch (err) {
+          console.error("Capacitor TX Error:", err);
         }
-      } catch (error) {
-        console.error("Transmission dropped:", error);
-        showToast("Link Error", "Failed to transfer data packet.");
+      } else {
+        if (!rxCharacteristic) return;
+        try { 
+          await rxCharacteristic.writeValue((new TextEncoder()).encode(command)); 
+        } catch (err) {}
       }
     }
 
