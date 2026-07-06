@@ -220,14 +220,12 @@
     const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
     const runtimeEngineText = document.getElementById('runtimeEngine');
 
-    // NEW SIMPLE CONVERSION: Plain text straight to direct Hex characters
-    function stringToHex(str) {
-      let hex = '';
-      for (let i = 0; i < str.length; i++) {
-        const code = str.charCodeAt(i);
-        hex += code.toString(16).padStart(2, '0');
-      }
-      return hex; // Returns simple string like "44415348..."
+    // 1. Replace your old stringToHex function with this clean Base64 Converter
+    function stringToBase64(str) {
+      // Converts standard text strings safely into standard Base64 format
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+        return String.fromCharCode('0x' + p1);
+      }));
     }
     
     window.addEventListener('load', async () => {
@@ -349,24 +347,28 @@
       setTimeout(() => { window.sendSyncPacket(); }, 1500);
     }
 
-    async function sendCommand(command) {
-      if (isCapacitorActive) {
-        if (!capacitorDeviceId) return;
-        try {
-          await window.Capacitor.Plugins.BluetoothLe.write({
-            deviceId: capacitorDeviceId,
-            service: SERVICE_UUID,
-            characteristic: CHARACTERISTIC_UUID,
-            value: stringToHex(command) // Uses the exact same straightforward hex delivery
-          });
-        } catch (err) {
-          console.error("Capacitor TX Error:", err);
-        }
-      } else {
-        if (!rxCharacteristic) return;
-        try { 
-          await rxCharacteristic.writeValue((new TextEncoder()).encode(command)); 
-        } catch (err) {}
+    // 2. Update your sendCommand function to pass the Base64 value
+    async function sendCommand(cmd) {
+      if (!isCapacitorActive || !capacitorDeviceId) {
+        console.log("Capacitor BLE not ready/connected. Command dropped:", cmd);
+        return;
+      }
+      
+      try {
+        // Convert the string command (e.g. "AUTH:1234") into a Base64 string
+        const base64Value = stringToBase64(cmd);
+        
+        console.log(`[BLE TX] Sending Plaintext: "${cmd}" as Base64: "${base64Value}"`);
+        
+        await window.Capacitor.Plugins.BluetoothLe.write({
+          deviceId: capacitorDeviceId,
+          service: SERVICE_UUID,
+          characteristic: CHARACTERISTIC_UUID,
+          value: base64Value // Now passing clean Base64 to the native plugin wrapper
+        });
+      } catch (error) {
+        console.error("BLE Transmission Failure:", error);
+        showToast("Sync Error", "Failed to write data packet to robot.");
       }
     }
 
