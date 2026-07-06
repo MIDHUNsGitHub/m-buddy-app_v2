@@ -207,7 +207,7 @@
   </script>
 
   <script>
-   const SERVICE_UUID        = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+    const SERVICE_UUID        = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
     const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
     let bluetoothDevice = null; let rxCharacteristic = null; let capacitorDeviceId = null;
     let gpsInterval = null; let isCapacitorActive = false; let isReconnecting = false;
@@ -220,7 +220,8 @@
     const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
     const runtimeEngineText = document.getElementById('runtimeEngine');
 
-    // Hex helper function to correctly parse payloads for the Native Capacitor BLE Plugin
+    // Converted to generate a clean HEX string stream which the native Capacitor 
+    // BLE module requires to transmit raw byte structures safely.
     function stringToHex(str) {
       return Array.from(str)
         .map(c => c.charCodeAt(0).toString(16).padStart(2, '0'))
@@ -231,15 +232,16 @@
       const savedID = localStorage.getItem('mochi_device_id'); const savedPIN = localStorage.getItem('mochi_device_pin');
       if (savedID) inputMochiID.value = savedID; if (savedPIN) inputMochiPIN.value = savedPIN;
       
-      // FIX: Corrected "Capacizer" typo to "Capacitor" so native engine activates
       if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BluetoothLe) {
-        isCapacitorActive = true; runtimeEngineText.textContent = "Capacitor Native Engine Active";
+        isCapacitorActive = true; 
+        runtimeEngineText.textContent = "Capacitor Native Engine Active";
         try { 
           await window.Capacitor.Plugins.BluetoothLe.initialize(); 
           setTimeout(() => { attemptAutoReconnect(); }, 800); 
-        } catch(e){ console.error("BLE Init Error: ", e); }
+        } catch(e){ console.error("BLE Native Error:", e); }
       } else {
-        isCapacitorActive = false; runtimeEngineText.textContent = "Standard Web Bluetooth Active";
+        isCapacitorActive = false; 
+        runtimeEngineText.textContent = "Standard Web Bluetooth Active";
       }
       startAutomaticSync();
     });
@@ -288,12 +290,11 @@
       if (saveCheck.checked) { localStorage.setItem('mochi_device_id', rawSuffix); localStorage.setItem('mochi_device_pin', pinCode); }
 
       try {
-        // FIX: Added dedicated runtime permissions trigger to display the native Location / Nearby prompt
         connectionState.textContent = "PERMISSIONS..."; 
         try { 
           await nativeBle.requestPermissions(); 
-        } catch (e) {
-          console.warn("Permissions interface rejected or bypassed:", e);
+        } catch (permissionErr) {
+          console.warn("Permissions interface passed:", permissionErr);
         }
         
         connectionState.textContent = "SCANNING...";
@@ -353,7 +354,9 @@
       if (isCapacitorActive) {
         if (!capacitorDeviceId) return;
         try {
+          // Send as direct clean HEX to bypass any character drops
           const hexValue = stringToHex(command);
+
           await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
