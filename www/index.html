@@ -350,37 +350,37 @@
     async function sendCommand(command) {
       if (!command) return;
 
-      console.log("[BLE TX] Preparing payload command string:", command);
+      // Append the newline end-of-command marker
+      const fullCommand = command + "\n";
+      console.log("[BLE TX] Packaging plain-text stream:", fullCommand);
 
-      // 1. Create a raw binary buffer allocated exactly to the string's length
-      const buffer = new ArrayBuffer(command.length);
-      const dataView = new DataView(buffer);
-
-      // 2. Populate the data view with individual character byte codes
-      for (let i = 0; i < command.length; i++) {
-        dataView.setUint8(i, command.charCodeAt(i));
-      }
+      // Convert the string into standard raw UTF-8 byte codes (safely preserves symbols like °)
+      const encoder = new TextEncoder();
+      const uint8Array = encoder.encode(fullCommand);
+      
+      // Convert the typed Uint8Array into a plain array of numbers for the Capacitor plugin wrapper
+      const numberArray = Array.from(uint8Array);
 
       if (isCapacitorActive) {
         if (!capacitorDeviceId) return;
         try {
-          // 3. Pass the DataView object directly to the plugin value property
+          // Use your standard, unmodified Community Plugin write configuration
           await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
             characteristic: CHARACTERISTIC_UUID,
-            value: dataView // <--- This native DataView object prevents the "Value required" Android error!
+            value: numberArray // Bypasses internal Base64/Hex parsing bugs completely
           });
-          console.log("[BLE TX] Capacitor native hardware write complete.");
+          console.log("[BLE TX] UTF-8 byte stream sent successfully:", numberArray);
         } catch (err) {
-          console.error("[BLE TX Error] Capacitor failed to broadcast:", err);
-          window.showToast("TRANSMISSION ERROR", err.message || "Native Drop");
+          console.error("[BLE TX Error] Capacitor write blocked:", err);
+          window.showToast("TRANSMISSION ERROR", err.message || "Drop");
         }
       } else {
-        // WebBluetooth Fallback Path for normal browser testing
+        // Normal Web Browser Testing Fallback Track
         if (!rxCharacteristic) return;
         try { 
-          await rxCharacteristic.writeValue(dataView); 
+          await rxCharacteristic.writeValue(uint8Array); 
         } catch (err) {
           console.error("[BLE TX Error] WebBluetooth fallback failed:", err);
         }
