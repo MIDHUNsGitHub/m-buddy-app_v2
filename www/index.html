@@ -271,6 +271,9 @@
         connectionState.textContent = "RECONNECTING...";
         await nativeBle.connect({ deviceId: lastMacAddress, timeout: 6000 });
         await new Promise(r => setTimeout(r, 1200));
+        try {
+          await nativeBle.requestMtu({ deviceId: lastMacAddress, mtu: 247 });
+        } catch(e) { console.log("MTU request failed", e); }
         
         connectionState.textContent = "AUTHENTICATING...";
         await sendCommand(`AUTH:${pinCode}`);
@@ -306,6 +309,9 @@
         connectionState.textContent = "BONDING...";
         await nativeBle.connect({ deviceId: device.deviceId, timeout: 15000 });
         await new Promise(r => setTimeout(r, 1500));
+        try {
+          await nativeBle.requestMtu({ deviceId: device.deviceId, mtu: 247 });
+        } catch(e) { console.log("MTU request failed", e); }
         
         connectionState.textContent = "AUTHENTICATING...";
         await sendCommand(`AUTH:${pinCode}`);
@@ -358,20 +364,22 @@
       const encoder = new TextEncoder();
       const uint8Array = encoder.encode(fullCommand);
       
-      // Convert the typed Uint8Array into a plain array of numbers for the Capacitor plugin wrapper
-      const numberArray = Array.from(uint8Array);
-
       if (isCapacitorActive) {
         if (!capacitorDeviceId) return;
         try {
-          // Use your standard, unmodified Community Plugin write configuration
+          const dataView = new DataView(
+            uint8Array.buffer,
+            uint8Array.byteOffset,
+            uint8Array.byteLength
+          );
+
           await window.Capacitor.Plugins.BluetoothLe.write({
             deviceId: capacitorDeviceId,
             service: SERVICE_UUID,
             characteristic: CHARACTERISTIC_UUID,
-            value: numberArray // Bypasses internal Base64/Hex parsing bugs completely
+            value: dataView
           });
-          console.log("[BLE TX] UTF-8 byte stream sent successfully:", numberArray);
+          console.log("[BLE TX] UTF-8 byte stream sent successfully:", fullCommand);
         } catch (err) {
           console.error("[BLE TX Error] Capacitor write blocked:", err);
           window.showToast("TRANSMISSION ERROR", err.message || "Drop");
