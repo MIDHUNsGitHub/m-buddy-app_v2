@@ -220,18 +220,16 @@
     const saveCheck = document.getElementById('saveCredentials'); const customOledTextInput = document.getElementById('customOledText');
     const runtimeEngineText = document.getElementById('runtimeEngine');
 
-    // FIXED CONVERSION FUNCTION: Converts text into a compliant Base64 string payload.
-    // This provides a valid structure that Capacitor safely passes to Android's Bluetooth stack,
-    // where your ESP32's base64 library handles the data correctly.
+    // Robust text encoder converting payload strings directly into a clean Base64 format 
+    // supported perfectly by Capacitor without dropping remaining string packages.
     function stringToBase64(str) {
       const encoder = new TextEncoder();
       const uint8Array = encoder.encode(str);
-      let binary = '';
-      const len = uint8Array.byteLength;
-      for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
+      let binString = "";
+      for (let i = 0; i < uint8Array.length; i++) {
+        binString += String.fromCharCode(uint8Array[i]);
       }
-      return window.btoa(binary);
+      return btoa(binString);
     }
     
     window.addEventListener('load', async () => {
@@ -300,7 +298,7 @@
         try { 
           await nativeBle.requestPermissions(); 
         } catch (permissionErr) {
-          console.warn("Permissions channel active:", permissionErr);
+          console.warn("Permissions prompt bypassed or already granted:", permissionErr);
         }
         
         connectionState.textContent = "SCANNING...";
@@ -356,24 +354,36 @@
       setTimeout(() => { window.sendSyncPacket(); }, 1500);
     }
 
-    async function sendCommand(command) {
-      if (isCapacitorActive) {
-        if (!capacitorDeviceId) return;
-        try {
-          await window.Capacitor.Plugins.BluetoothLe.write({
+    async function sendCommand(commandText) {
+      if (!commandText) return;
+      
+      try {
+        // 1. Convert the plain text string into an explicit array of individual character byte codes
+        const encoder = new TextEncoder();
+        const byteData = encoder.encode(commandText + "\n"); // Includes newline to help string alignment
+        
+        // 2. Convert the byte array into a standard Hexadecimal string format required by Capacitor BLE
+        const hexString = Array.from(byteData)
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+
+        console.log("Sending Raw Hex Payload:", hexString);
+
+        if (isCapacitorActive && capacitorDeviceId && rxCharacteristic) {
+          // Execute the native hardware transmission using the explicit Hex format
+          await window.Capacitor.Plugins.BluetoothLe.writeWithoutResponse({
             deviceId: capacitorDeviceId,
-            service: SERVICE_UUID,
-            characteristic: CHARACTERISTIC_UUID,
-            value: stringToBase64(command)
+            service: '4fafc201-1fb5-459e-8fcc-c5c9c331914b',
+            characteristic: 'beb5483e-36e1-4688-b7f5-ea07361b26a8',
+            value: hexString // Sends the complete hex array instead of a breaking string pointer
           });
-        } catch (err) {
-          console.error("Capacitor TX Error:", err);
+        } else if (rxCharacteristic) {
+          // Fallback WebBluetooth path for standard browser testing
+          await rxCharacteristic.writeValueWithoutResponse(byteData);
         }
-      } else {
-        if (!rxCharacteristic) return;
-        try { 
-          await rxCharacteristic.writeValue((new TextEncoder()).encode(command)); 
-        } catch (err) {}
+      } catch (error) {
+        console.error("Transmission dropped:", error);
+        showToast("Link Error", "Failed to transfer data packet.");
       }
     }
 
@@ -435,6 +445,5 @@
       setTimeout(() => { c.classList.remove('opacity-100', 'translate-y-0'); c.classList.add('opacity-0', '-translate-y-10'); }, 3500);
     }
   </script>
-  
 </body>
 </html>
