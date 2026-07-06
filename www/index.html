@@ -348,27 +348,38 @@
     }
 
     // 2. Update your sendCommand function to pass the Base64 value
-    async function sendCommand(cmd) {
-      if (!isCapacitorActive || !capacitorDeviceId) {
-        console.log("Capacitor BLE not ready/connected. Command dropped:", cmd);
-        return;
+    async function sendCommand(command) {
+      if (!command) return;
+
+      // 1. Convert the plain text string into a clean array of raw character byte codes
+      // Example: "AUTH:1234" becomes [65, 85, 84, 72, 58, 49, 50, 51, 52]
+      const bufferArray = [];
+      for (let i = 0; i < command.length; i++) {
+        bufferArray.push(command.charCodeAt(i));
       }
-      
-      try {
-        // Convert the string command (e.g. "AUTH:1234") into a Base64 string
-        const base64Value = stringToBase64(cmd);
-        
-        console.log(`[BLE TX] Sending Plaintext: "${cmd}" as Base64: "${base64Value}"`);
-        
-        await window.Capacitor.Plugins.BluetoothLe.write({
-          deviceId: capacitorDeviceId,
-          service: SERVICE_UUID,
-          characteristic: CHARACTERISTIC_UUID,
-          value: base64Value // Now passing clean Base64 to the native plugin wrapper
-        });
-      } catch (error) {
-        console.error("BLE Transmission Failure:", error);
-        showToast("Sync Error", "Failed to write data packet to robot.");
+
+      if (isCapacitorActive) {
+        if (!capacitorDeviceId) return;
+        try {
+          // 2. Pass the raw numbers array directly into the native mobile plugin value
+          await window.Capacitor.Plugins.BluetoothLe.write({
+            deviceId: capacitorDeviceId,
+            service: SERVICE_UUID,
+            characteristic: CHARACTERISTIC_UUID,
+            value: bufferArray // <--- Sending the raw array skips the broken string parser completely!
+          });
+          console.log("Capacitor Native TX sent byte array:", bufferArray);
+        } catch (err) {
+          console.error("Capacitor TX Error:", err);
+        }
+      } else {
+        // Standard Web Bluetooth fallback path for normal browsers
+        if (!rxCharacteristic) return;
+        try { 
+          await rxCharacteristic.writeValue(new Uint8Array(bufferArray)); 
+        } catch (err) {
+          console.error("WebBluetooth TX Error:", err);
+        }
       }
     }
 
